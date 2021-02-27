@@ -1,5 +1,3 @@
-print("Random seed:", math.randomseed())
-
 local tests = {}
 
 -- Loads and shuffles tests
