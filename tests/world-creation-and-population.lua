@@ -25,7 +25,7 @@ function case.populated_world()
   end
   assert(world.query:all():count() == 10, "World does not contain 10 entities")
 
-  world:all():remove()
+  world.query:all():remove()
   assert(world.query:all():count() == 0, "World is not empty")
 end
 
