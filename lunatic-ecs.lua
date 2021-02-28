@@ -1,34 +1,26 @@
-local unpack = unpack or table.unpack
-
 -- Class: Query
 
 local Query = {}
 Query.__index = Query
 
-function Query.new(world, parent)
+function Query.new(world, node_type, parent)
   assert(world, "Query constructor requires world")
   local query = {}
 
   query.world = world
   query.parent = parent
+  query.type = node_type
   query.closure = function(q) return q end
 
   return setmetatable(query, Query)
 end
 
 function Query:execute()
-  local query = { scope = {}, components = {} }
-
+  local query
   if self.parent then
-    local result = self.parent:execute()
-
-    for i, v in pairs(result.components) do
-      query.components[i] = v
-    end
-
-    for i = 1, #result.scope do
-      query.scope[i] = result.scope[i]
-    end
+    query = self.parent:execute()
+  else
+    query = { }
   end
 
   return self.closure(query)
@@ -47,7 +39,9 @@ function Query:remove()
 end
 
 function Query:all()
-  self.closure = function(query)
+  local query = Query.new(self.world, "all", self)
+
+  query.closure = function(query)
     local entity_ids = {}
 
     for name, component in pairs(self.world.component) do
@@ -65,26 +59,34 @@ function Query:all()
     return query
   end
 
-  return Query.new(self.world, self)
+  return query
 end
 
-function Query:with(base_component, ...)
-  assert(base_component, "With query requires at least one component")
+function Query:with(...)
   local components = {...}
+  local query = Query.new(self.world, "with", self)
 
-  self.closure = function(query)
-    query.components[base_component.name] = base_component
-    for id, _ in pairs(base_component.entity_ids) do
-      query.scope[#query.scope+1] = id
+  query.closure = function(query)
+    local skip_first
+    if query.scope == nil then
+      query.scope = {}
+      query.components = {}
+
+      query.components[components[1].name] = components[1]
+      for id, _ in pairs(components[1].entity_ids) do
+        query.scope[#query.scope+1] = id
+      end
+      skip_first = true
     end
 
-    for i = 1, #components do
+    local i0 = skip_first and 2 or 1
+    for i = i0, #components do
       query.components[components[i].name] = components[i]
 
       for j = #query.scope, 1, -1 do
         if not components[i].entity_ids[query.scope[j]] then
-          new_scope[j] = query.scope[#query.scope]
-          new_scope[#new_scope] = nil
+          query.scope[j] = query.scope[#query.scope]
+          query.scope[#query.scope] = nil
         end
       end
     end
@@ -92,13 +94,14 @@ function Query:with(base_component, ...)
     return query
   end
 
-  return Query.new(self.world, self)
+  return query
 end
 
 function Query:without(...)
   local components = {...}
+  local query = Query.new(self.world, "without", self)
 
-  self.closure = function(query)
+  query.closure = function(query)
     for i = 1, #components do
       query.components[components[i].name] = nil
 
@@ -113,13 +116,14 @@ function Query:without(...)
     return query
   end
 
-  return Query.new(self.world, self)
+  return query
 end
 
 function Query:optional(...)
   local components = {...}
+  local query = Query.new(self.world, "optional", self)
 
-  self.closure = function(query)
+  query.closure = function(query)
     for _, component in ipairs(components) do
       query.components[component.name] = component
     end
@@ -127,11 +131,13 @@ function Query:optional(...)
     return query
   end
 
-  return Query.new(self.world, self)
+  return query
 end
 
 function Query:where(f)
-  self.closure = function(query)
+  local query = Query.new(self.world, "where", self)
+
+  query.closure = function(query)
     for i = #self.scope, 1, -1 do
       local t = {}
       for name, component in pairs(self.components) do
@@ -147,11 +153,13 @@ function Query:where(f)
     return query
   end
 
-  return Query.new(self.world, self)
+  return query
 end
 
 function Query:map(f)
-  self.closure = function(query)
+  local query = Query.new(self.world, "map", self)
+
+  query.closure = function(query)
     for i = 1, #query.scope do
       local id = query.scope[i]
 
@@ -166,7 +174,7 @@ function Query:map(f)
     return query
   end
 
-  return Query.new(self.world, self)
+  return query
 end
 
 -- Class: World
@@ -180,7 +188,7 @@ function World.new()
 
   world.next_id = 1
   world.component = {}
-  world.query = Query.new(world)
+  world.query = Query.new(world, "root")
 
   return world
 end
