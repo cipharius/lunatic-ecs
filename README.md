@@ -11,3 +11,11 @@ The high-level project goals are:
 * A flexible, yet efficient way to build queries against the world, such as: all entities with components A and B, but without component C.
 * Functional(-ish) reactive way of describing system logic, based on the defined queries, such as: Map the function over all entities selected by query, or react to addition, removal and change in queried entities.
 * Design underlying structures in such way, that would allow implementing the framework's interface in C/C++. Components should be compatible with C structs, so that cache-friendly component store could be implemented.
+
+## Sources of inspiration
+
+* Apecs: Haskell Entity-Component-System library
+  https://github.com/jonascarpay/apecs#readme
+
+* T-machine blog
+  http://t-machine.org/index.php/category/entity-systems/
