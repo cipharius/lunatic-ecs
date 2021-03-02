@@ -255,7 +255,7 @@ function World:remove_component(id, name)
   self.component[name]:remove(id)
 end
 
-function World:new_entity(components)
+function World:add_entity(components)
   local components = components or {}
   local id = self.next_id
 

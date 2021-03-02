@@ -7,20 +7,20 @@ function populare_world()
   })
 
   for i = 1, 10 do
-    world:new_entity({
+    world:add_entity({
       componentA = { x = 0 },
       componentB = { x = 0 }
     })
   end
 
   for i = 1, 5 do
-    world:new_entity({
+    world:add_entity({
       componentA = { x = 0 }
     })
   end
 
   for i = 1, 5 do
-    world:new_entity({
+    world:add_entity({
       componentB = { x = 0 }
     })
   end

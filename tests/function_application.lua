@@ -8,12 +8,12 @@ function case.map_function()
     identity = { fields = { name = { type = "string" } } }
   })
 
-  local red_entity_id = world:new_entity({
+  local red_entity_id = world:add_entity({
     color = { name = "red" },
     identity = { name = "red" }
   })
 
-  local green_entity_id = world:new_entity({
+  local green_entity_id = world:add_entity({
     color = { name = "green" },
     identity = { name = "green" }
   })
@@ -52,7 +52,7 @@ function case.fold_function()
   })
 
   for i = 1, 5 do
-    world:new_entity({
+    world:add_entity({
       physical = { weight = i }
     })
   end

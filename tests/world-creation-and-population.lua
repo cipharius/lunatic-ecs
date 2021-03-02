@@ -21,7 +21,7 @@ function case.populated_world()
   assert(world.all:count() == 0, "World is not empty")
 
   for i = 1, 10 do
-    world:new_entity({ basic_component = {} })
+    world:add_entity({ basic_component = {} })
   end
   assert(world.all:count() == 10, "World does not contain 10 entities")
 
