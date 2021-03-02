@@ -1,6 +1,6 @@
 local ecs = require("../lunatic-ecs")
 
-function populare_world()
+function populate_world()
   local world = ecs.new_world({
     componentA = { fields = { x = { type = "number" } } },
     componentB = { fields = { x = { type = "number" } } }
@@ -31,7 +31,7 @@ end
 local case = {}
 
 function case.shared_base_query()
-  local world = populare_world()
+  local world = populate_world()
 
   local base_query = world.all:with(world.component.componentA)
   assert(base_query:count() == 15, "World does not contain 15 entities with componentA")
