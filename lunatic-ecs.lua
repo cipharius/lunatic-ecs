@@ -11,6 +11,7 @@ function Query.new(world, node_type, parent)
   query.parent = parent
   query.type = node_type
   query.components = {}
+  query.without_components = {}
   query.optional_components = {}
 
   if query.parent then
@@ -26,13 +27,12 @@ function Query.new(world, node_type, parent)
 end
 
 function Query:get_entities()
-  local next = next
   local members = {}
 
   if next(self.components) ~= nil then
-    local base_set = next(self.components)
-    for component, _ in next, self.components do
-      if #component.rows < #base_set.rows then
+    local _, base_set = next(self.components)
+    for _, component in pairs(self.components) do
+      if component and #component.rows < #base_set.rows then
         base_set = component
       end
     end
@@ -40,8 +40,16 @@ function Query:get_entities()
     for i = 1, #base_set.rows do
       local id = base_set.rows[i].__id
       local skip = false
-      for component, constraint in next, self.components do
-        if (component.entity_ids[id] ~= nil) ~= constraint then
+
+      for _, component in pairs(self.without_components) do
+        if component.entity_ids[id] then
+          skip = true
+          break
+        end
+      end
+
+      for _, component in pairs(self.components) do
+        if component.entity_ids[id] == nil then
           skip = true
           break
         end
@@ -53,13 +61,13 @@ function Query:get_entities()
     end
   else
     local entity_ids = {}
-    for _, component in next, self.world.component do
+    for _, component in pairs(self.world.component) do
       for id, _ in next, component.entity_ids do
         entity_ids[id] = true
       end
     end
 
-    for id, _ in next, entity_ids do
+    for id, _ in pairs(entity_ids) do
       members[#members+1] = id
     end
   end
@@ -67,16 +75,13 @@ function Query:get_entities()
   return members
 end
 
-local t0, t1
-local timer = os.clock
 function Query:get_components()
   local components = {}
-  local next = next
 
   if next(self.components) ~= nil then
-    local base_set = next(self.components)
-    for component, _ in next, self.components do
-      if #component.rows < #base_set.rows then
+    local _, base_set = next(self.components)
+    for _, component in pairs(self.components) do
+      if component and #component.rows < #base_set.rows then
         base_set = component
       end
     end
@@ -84,17 +89,20 @@ function Query:get_components()
     for i = 1, #base_set.rows do
       local id = base_set.rows[i].__id
       local t = {}
-      for component, constraint in next, self.components do
-        if (component.entity_ids[id] ~= nil) ~= constraint then
+      for name, component in pairs(self.components) do
+        if (component.entity_ids[id] ~= nil) == (component == false) then
           t = nil
           break
         end
-        t[component.name] = component.rows[component.entity_ids[id]]
+
+        if t then
+          t[name] = component.rows[component.entity_ids[id]]
+        end
       end
 
       if t then
-        for component, _ in next, self.optional_components do
-          t[component.name] = component.rows[component.entity_ids[id]]
+        for name, component in pairs(self.optional_components) do
+          t[name] = component.rows[component.entity_ids[id]]
         end
         components[#components+1] = t
       end
@@ -109,10 +117,10 @@ function Query:get_components()
 
     for id, _ in next, entity_ids do
       local t = {}
-      for _, component in next, self.world.component do
+      for _, component in pairs(self.world.component) do
         t[component.name] = component.rows[component.entity_ids[id]]
       end
-      components[#members+1] = t
+      components[#components+1] = t
     end
   end
 
@@ -140,8 +148,8 @@ function Query:with(...)
   local query = Query.new(self.world, "with", self)
 
   for i = 1, #components do
-    assert(query.components[components[i]] ~= false, "Resulting query contradicts itself")
-    query.components[components[i]] = true
+    assert(query.without_components[components[i].name] == nil, "Resulting query contradicts itself")
+    query.components[components[i].name] = components[i]
   end
 
   return query
@@ -152,8 +160,8 @@ function Query:without(...)
   local query = Query.new(self.world, "without", self)
 
   for i = 1, #components do
-    assert(query.components[components[i]] ~= true, "Resulting query contradicts itself")
-    query.components[components[i]] = false
+    assert(query.components[components[i].name] == nil, "Resulting query contradicts itself")
+    query.without_components[components[i].name] = components[i]
   end
 
   return query
@@ -164,7 +172,9 @@ function Query:optional(...)
   local query = Query.new(self.world, "optional", self)
 
   for i = 1, #components do
-    query_node.optional_components[components[i]] = true
+    if query.components[components[i].name] == nil and query.without_components[components[i].name] == nil then
+      query.optional_components[components[i].name] = components[i].name
+    end
   end
 
   return query
