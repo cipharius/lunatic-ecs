@@ -26,19 +26,21 @@ function Query.new(world, node_type, parent)
 end
 
 function Query:get_entities()
+  local next = next
   local members = {}
 
   if next(self.components) ~= nil then
     local base_set = next(self.components)
-    for component, _ in pairs(self.components) do
+    for component, _ in next, self.components do
       if #component.rows < #base_set.rows then
         base_set = component
       end
     end
 
-    for id,_ in pairs(base_set.entity_ids) do
+    for i = 1, #base_set.rows do
+      local id = base_set.rows[i].__id
       local skip = false
-      for component, constraint in pairs(self.components) do
+      for component, constraint in next, self.components do
         if (component.entity_ids[id] ~= nil) ~= constraint then
           skip = true
           break
@@ -51,13 +53,13 @@ function Query:get_entities()
     end
   else
     local entity_ids = {}
-    for _, component in pairs(self.world.component) do
-      for id, _ in pairs(component.entity_ids) do
+    for _, component in next, self.world.component do
+      for id, _ in next, component.entity_ids do
         entity_ids[id] = true
       end
     end
 
-    for id, _ in pairs(entity_ids) do
+    for id, _ in next, entity_ids do
       members[#members+1] = id
     end
   end
@@ -65,24 +67,53 @@ function Query:get_entities()
   return members
 end
 
+local t0, t1
+local timer = os.clock
 function Query:get_components()
-  local entities = self:get_entities()
   local components = {}
+  local next = next
 
-  for i = 1, #entities do
-    local t = {}
-
-    for component, required in pairs(self.components) do
-      if required then
-        t[component.name] = component.rows[component.entity_ids[entities[i]]]
+  if next(self.components) ~= nil then
+    local base_set = next(self.components)
+    for component, _ in next, self.components do
+      if #component.rows < #base_set.rows then
+        base_set = component
       end
     end
 
-    for component, _ in pairs(self.optional_components) do
-      t[component.name] = component.rows[component.entity_ids[entities[i]]]
+    for i = 1, #base_set.rows do
+      local id = base_set.rows[i].__id
+      local t = {}
+      for component, constraint in next, self.components do
+        if (component.entity_ids[id] ~= nil) ~= constraint then
+          t = nil
+          break
+        end
+        t[component.name] = component.rows[component.entity_ids[id]]
+      end
+
+      if t then
+        for component, _ in next, self.optional_components do
+          t[component.name] = component.rows[component.entity_ids[id]]
+        end
+        components[#components+1] = t
+      end
+    end
+  else
+    local entity_ids = {}
+    for _, component in next, self.world.component do
+      for id, _ in next, component.entity_ids do
+        entity_ids[id] = true
+      end
     end
 
-    components[#components+1] = t
+    for id, _ in next, entity_ids do
+      local t = {}
+      for _, component in next, self.world.component do
+        t[component.name] = component.rows[component.entity_ids[id]]
+      end
+      components[#members+1] = t
+    end
   end
 
   return components
