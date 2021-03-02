@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: Install Lua 5.1 interpreter
-        run: apt install lua5.1
+        run: sudo apt-get install lua5.1
 
       - name: Run all tests
         run: "sh -c 'lua test.lua tests/*'"
