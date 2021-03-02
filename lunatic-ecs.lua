@@ -60,14 +60,24 @@ function Query:get_entities()
       end
     end
   else
-    local entity_ids = {}
-    for _, component in pairs(self.world.component) do
-      for id, _ in next, component.entity_ids do
-        entity_ids[id] = true
+    local keep = {}
+    local skip = {}
+
+    for _, component in pairs(self.without_components) do
+      for i = 1, #component.rows do
+        skip[component.rows[i].__id] = true
       end
     end
 
-    for id, _ in pairs(entity_ids) do
+    for name, component in pairs(self.world.component) do
+      for id, _ in pairs(component.entity_ids) do
+        if not skip[id] then
+          keep[id] = true
+        end
+      end
+    end
+
+    for id, _ in pairs(keep) do
       members[#members+1] = id
     end
   end
@@ -108,19 +118,29 @@ function Query:get_components()
       end
     end
   else
-    local entity_ids = {}
-    for _, component in next, self.world.component do
-      for id, _ in next, component.entity_ids do
-        entity_ids[id] = true
+    local keep = {}
+    local skip = {}
+
+    for _, component in pairs(self.without_components) do
+      for i = 1, #component.rows do
+        skip[component.rows[i].__id] = true
       end
     end
 
-    for id, _ in next, entity_ids do
-      local t = {}
-      for _, component in pairs(self.world.component) do
-        t[component.name] = component.rows[component.entity_ids[id]]
+    for name, component in pairs(self.world.component) do
+      for id, _ in pairs(component.entity_ids) do
+        if not skip[id] then
+          keep[id] = true
+        end
       end
-      components[#components+1] = t
+    end
+
+    for id, _ in pairs(keep) do
+      local t = {}
+      for name, component in pairs(self.world.component) do
+        t[name] = component.rows[component.entity_ids[id]]
+      end
+      members[#members+1] = t
     end
   end
 
