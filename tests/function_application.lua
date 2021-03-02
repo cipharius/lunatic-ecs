@@ -1,23 +1,5 @@
 local ecs = require("../lunatic-ecs")
 
-function populare_world()
-  for i = 1, 8 do
-    world:new_entity({
-      color = { name = "red" },
-      identity = { name = "red entity" }
-    })
-  end
-
-  for i = 1, 7 do
-    world:new_entity({
-      color = { name = "green" },
-      identity = { name = "green entity" }
-    })
-  end
-
-  return world
-end
-
 local case = {}
 
 function case.map_function()
