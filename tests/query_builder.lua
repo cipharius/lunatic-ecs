@@ -43,4 +43,13 @@ function case.shared_base_query()
   assert(with_B:count() == 10, "World does not contain 10 entities with componentA and componentB")
 end
 
+function case.all_without_query()
+  local world = populate_world()
+
+  assert(world.all:count() == 20, "World does not contain 20 entities")
+
+  local all_without_A = world.all:without(world.component.componentA)
+  assert(all_without_A:count() == 5, "World does not contain 5 entities without componentA")
+end
+
 return case
