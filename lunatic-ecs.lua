@@ -27,7 +27,6 @@ end
 
 function Query:get_entities()
   local members = {}
-  local components = {}
 
   if next(self.components) ~= nil then
     local base_set = next(self.components)
@@ -47,7 +46,7 @@ function Query:get_entities()
       end
 
       if not skip then
-        members[#members+1] = components
+        members[#members+1] = id
       end
     end
   else
@@ -75,12 +74,12 @@ function Query:get_components()
 
     for component, required in pairs(self.components) do
       if required then
-        t[name] = component.rows[component.entity_ids[entities[i]]]
+        t[component.name] = component.rows[component.entity_ids[entities[i]]]
       end
     end
 
     for component, _ in pairs(self.optional_components) do
-      t[name] = component.rows[component.entity_ids[entities[i]]]
+      t[component.name] = component.rows[component.entity_ids[entities[i]]]
     end
 
     components[#components+1] = t
@@ -134,20 +133,82 @@ function Query:optional(...)
   local query = Query.new(self.world, "optional", self)
 
   for i = 1, #components do
-    query_node.optional_components[components[i].name] = true
+    query_node.optional_components[components[i]] = true
   end
 
   return query
 end
 
 function Query:map(f)
-  local components = self:get_components()
+  return function(...)
+    local components = self:get_components()
 
-  for i = 1, #components do
-    f(components[i])
+    for i = 1, #components do
+      f(components[i], ...)
+    end
+
+    return components
   end
+end
 
-  return components
+function Query:fold(f)
+  return function(initial, ...)
+    local components = self:get_components()
+
+    local result = initial
+    for i = 1, #components do
+      result = f(components[i], result)
+    end
+
+    return result
+  end
+end
+
+
+-- Class: Component
+
+local Component = {}
+Component.__index = Component
+
+function Component.new(name, schema)
+  local component = {}
+
+  component.name = name
+  component.schema = schema
+  component.entity_ids = {}
+  component.rows = {}
+
+  return setmetatable(component, Component)
+end
+
+function Component:contains(entity_id)
+  return self.entity_ids[entity_id] ~= nil
+end
+
+function Component:add(entity_id, fields)
+  self.rows[#self.rows+1] = setmetatable(fields, { __index = { __id = entity_id } })
+  self.entity_ids[entity_id] = #self.rows
+end
+
+function Component:remove(entity_id)
+  local index = self.entity_ids[entity_id]
+  if index then
+    self.entity_ids[self.rows[#self.rows].__id] = index
+    self.rows[index] = self.rows[#self.rows]
+    self.rows[#self.rows] = nil
+    self.entity_ids[entity_id] = nil
+  end
+end
+
+function Component:get(entity_id)
+  local index = self.entity_ids[entity_id]
+  if index then
+    return self.rows[index]
+  end
+end
+
+function Component:set(entity_id, fields)
+  self.rows[self.entity_ids[entity_id]] = fields
 end
 
 -- Class: World
@@ -170,14 +231,7 @@ function World:register_component(name, component)
   assert(type(name) == "string", "Component name expected")
   assert(self.component[name] == nil, "Component is already registered")
 
-  -- TODO Validate schema
-
-  self.component[name] = {
-    name = name,
-    schema = component,
-    entity_ids = {},
-    rows = {}
-  }
+  self.component[name] = Component.new(name, component)
 end
 
 function World:unregister_component(name)
@@ -187,28 +241,18 @@ end
 function World:add_component(id, name, init)
   assert(type(id) == "number", "Entity ID expected")
   assert(self.component[name], "Component is not registered")
-  local init = init or {}
 
-  init = setmetatable(init, { __index = { __id = id } })
-
-  local i = #self.component[name].rows + 1
-  self.component[name].rows[i] = init
-  self.component[name].entity_ids[id] = i
+  if self.component[name]:contains(id) then
+    self.component[name]:set(id, init or {})
+  else
+    self.component[name]:add(id, init or {})
+  end
 end
 
 function World:remove_component(id, name)
   assert(type(id) == "number", "Entity ID expected")
   assert(self.component[name], "Component is not registered")
-
-  local component = self.component[name]
-  local row_id = component.entity_ids[id]
-  if row_id then
-    component.rows[row_id] = component.rows[#component.rows]
-    component.entity_ids[component.rows[row_id].__id] = row_id
-
-    component.rows[#component.rows] = nil
-    component.entity_ids[id] = nil
-  end
+  self.component[name]:remove(id)
 end
 
 function World:new_entity(components)
