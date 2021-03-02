@@ -58,5 +58,5 @@ for i = 1, #tests do
 end
 
 if has_failures then
-  exit(1)
+  error("Some tests failed")
 end
