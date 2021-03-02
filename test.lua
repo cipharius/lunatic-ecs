@@ -19,6 +19,7 @@ end
 
 -- Runs tests
 local timer = os.clock
+local has_failures = false
 for i = 1, #tests do
   local test = tests[i]
   print(("Test: %s"):format(test.name))
@@ -50,7 +51,12 @@ for i = 1, #tests do
     if success then
       print(("    Success: %f seconds"):format(t1 - t0))
     else
+      has_failures = true
       print(("    Failure: %s"):format(err))
     end
   end
+end
+
+if has_failures then
+  exit(1)
 end
