@@ -26,4 +26,4 @@ jobs:
           sudo apt-get install luajit
 
       - name: Running all tests on LuaJIT
-        run: "sh -c 'LUA_PATH=\"./?.lua\" lua test.lua tests/*'"
+        run: "sh -c 'LUA_PATH=\"./?.lua\" luajit test.lua tests/*'"
