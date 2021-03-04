@@ -98,23 +98,35 @@ function Query:get_components()
 
     for i = 1, #base_set.rows do
       local id = base_set.rows[i].__id
-      local t = {}
-      for name, component in pairs(self.components) do
-        if (component.entity_ids[id] ~= nil) == (component == false) then
-          t = nil
-          break
-        end
+      local skip = false
 
-        if t then
-          t[name] = component.rows[component.entity_ids[id]]
+      for _, component in pairs(self.without_components) do
+        if component.entity_ids[id] ~= nil then
+          skip = true
+          break
         end
       end
 
-      if t then
-        for name, component in pairs(self.optional_components) do
+      if not skip then
+        local t = {}
+
+        for name, component in pairs(self.components) do
+          if component.entity_ids[id] == nil then
+            skip = true
+            break
+          end
+
           t[name] = component.rows[component.entity_ids[id]]
         end
-        components[#components+1] = t
+
+        if not skip then
+          for name, component in pairs(self.optional_components) do
+            if component.entity_ids[id] ~= nil then
+              t[name] = component.rows[component.entity_ids[id]]
+            end
+          end
+          components[#components+1] = t
+        end
       end
     end
   else
