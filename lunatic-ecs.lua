@@ -205,7 +205,7 @@ function Query:optional(...)
 
   for i = 1, #components do
     if query.components[components[i].name] == nil and query.without_components[components[i].name] == nil then
-      query.optional_components[components[i].name] = components[i].name
+      query.optional_components[components[i].name] = components[i]
     end
   end
 
@@ -218,6 +218,14 @@ function Query:map(f)
 
     for i = 1, #components do
       f(components[i], ...)
+    end
+
+    for _, component in pairs(self.components) do
+      component:end_transaction()
+    end
+
+    for _, component in pairs(self.optional_components) do
+      component:end_transaction()
     end
 
     return components
@@ -237,6 +245,77 @@ function Query:fold(f)
   end
 end
 
+function Query:on_add(f)
+  local recently_handled = setmetatable({}, { __mode = "v" })
+
+  local handler = function(id, component)
+    if recently_handled[id] then return end
+
+    for _, component in pairs(self.without_components) do
+      if component.entity_ids[id] ~= nil then
+        return
+      end
+    end
+
+    local t = {}
+
+    for name, component in pairs(self.components) do
+      if component.entity_ids[id] == nil then
+        return
+      end
+      t[name] = component.rows[component.entity_ids[id]]
+    end
+
+    for name, component in pairs(self.optional_components) do
+      if component.entity_ids[id] then
+        t[name] = component.rows[component.entity_ids[id]]
+      end
+    end
+
+    recently_handled[id] = component
+    f(t)
+  end
+
+  for _, component in pairs(self.components) do
+    component:on_add_callback(handler)
+  end
+end
+
+function Query:on_remove(f)
+  error("Not implemented")
+end
+
+function Query:on_change(component, f)
+  assert(self.components[component.name] ~= nil, "Can not listen to change on non-required component")
+
+  local handler = function(id, field, value)
+    for _, component in pairs(self.without_components) do
+      if component.entity_ids[id] ~= nil then
+        return
+      end
+    end
+
+    local t = {}
+
+    for name, component in pairs(self.components) do
+      if component.entity_ids[id] == nil then
+        return
+      end
+      t[name] = component.rows[component.entity_ids[id]]
+    end
+
+    for name, component in pairs(self.optional_components) do
+      if component.entity_ids[id] then
+        t[name] = component.rows[component.entity_ids[id]]
+      end
+    end
+
+    f(t, field, value)
+  end
+
+  component:on_change_callback(handler)
+end
+
 
 -- Class: Component
 
@@ -250,6 +329,10 @@ function Component.new(name, schema)
   component.schema = schema
   component.entity_ids = {}
   component.rows = {}
+  component.on_add_callbacks = {}
+  component.on_remove_callbacks = {}
+  component.on_change_callbacks = {}
+  component.event_queue = {}
 
   return setmetatable(component, Component)
 end
@@ -259,13 +342,24 @@ function Component:contains(entity_id)
 end
 
 function Component:add(entity_id, fields)
-  self.rows[#self.rows+1] = setmetatable(fields, { __index = { __id = entity_id } })
+  fields.__id = entity_id
+  self.rows[#self.rows+1] = setmetatable({}, {
+    __index = fields,
+    __newindex = function(t, i, v)
+      if #self.on_change_callbacks > 0 then
+        self.event_queue[#self.event_queue+1] = { event = "change", id = entity_id, field = i, value = v }
+      end
+      fields[i] = v
+    end
+  })
   self.entity_ids[entity_id] = #self.rows
+  self.event_queue[#self.event_queue+1] = { event = "add", id = entity_id, value = self.rows[#self.rows] }
 end
 
 function Component:remove(entity_id)
   local index = self.entity_ids[entity_id]
   if index then
+    self.event_queue[#self.event_queue+1] = { event = "remove", id = entity_id, value = self.rows[index] }
     self.entity_ids[self.rows[#self.rows].__id] = index
     self.rows[index] = self.rows[#self.rows]
     self.rows[#self.rows] = nil
@@ -280,8 +374,38 @@ function Component:get(entity_id)
   end
 end
 
-function Component:set(entity_id, fields)
-  self.rows[self.entity_ids[entity_id]] = fields
+function Component:end_transaction()
+  for i = 1, #self.event_queue do
+    test = i
+    local event = self.event_queue[i]
+
+    if event.event == "add" then
+      for j = 1, #self.on_add_callbacks do
+        self.on_add_callbacks[j](event.id, event.value)
+      end
+    elseif event.event == "remove" then
+      for j = 1, #self.on_remove_callbacks do
+        self.on_remove_callbacks[j](event.id, event.value)
+      end
+    elseif event.event == "change" then
+      for j = 1, #self.on_change_callbacks do
+        self.on_change_callbacks[j](event.id, event.field, event.value)
+      end
+    end
+    self.event_queue[i] = nil
+  end
+end
+
+function Component:on_add_callback(callback)
+  self.on_add_callbacks[#self.on_add_callbacks+1] = callback
+end
+
+function Component:on_remove_callback(callback)
+  self.on_remove_callbacks[#self.on_remove_callbacks+1] = callback
+end
+
+function Component:on_change_callback(callback)
+  self.on_change_callbacks[#self.on_change_callbacks+1] = callback
 end
 
 -- Class: World
@@ -333,7 +457,11 @@ function World:add_entity(components)
   local id = self.next_id
 
   for name, init in pairs(components) do
-    self:add_component(id, name, init)
+    self:add_component(id, name, init, true)
+  end
+
+  for name, _ in pairs(components) do
+    self.component[name]:end_transaction()
   end
 
   self.next_id = self.next_id + 1
